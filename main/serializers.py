@@ -1,3 +1,5 @@
+from django.shortcuts import reverse
+
 from rest_framework import serializers
 
 from main.models import ShortURL
@@ -18,7 +20,8 @@ class ShortURLSerializer(serializers.ModelSerializer):
     def get_alias(self, short_url):
         request = self.context['request']
         hostname = request.META['HTTP_HOST']
-        return f'{request.scheme}://{hostname}/r/?id={short_url.short_id}'
+        internal_url = reverse('urls:trigger', args=[short_url.short_id])
+        return f'{request.scheme}://{hostname}{internal_url}'
 
     def create(self, validated_data):
         request = self.context['request']

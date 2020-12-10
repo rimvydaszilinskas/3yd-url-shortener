@@ -1,27 +1,26 @@
-from datetime import datetime
-
+from django.db.models import F
 from django.http import Http404
-from django.shortcuts import redirect
+from django.shortcuts import redirect, get_object_or_404
+from django.utils import timezone
+
 from rest_framework.generics import (
     ListCreateAPIView, DestroyAPIView,
     RetrieveDestroyAPIView,
 )
 
-from main.models import ShortURL
-from main.serializers import ShortURLSerializer
+from .models import ShortURL
+from .serializers import ShortURLSerializer
 
 
-def redirect_to_url(request):
-    try:
-        short_url = ShortURL.objects.get(short_id=request.GET['id'])
-    except ShortURL.DoesNotExist:
-        raise Exception
+def redirect_to_url(request, *args, **kwargs):
+    short_url = get_object_or_404(
+        ShortURL, short_id=kwargs['short_id'], deleted_at__isnull=True)
 
-    short_url.accessed_at = datetime.now()
-    short_url.times_accessed = short_url.times_accessed + 1
-    short_url.save()
+    short_url.accessed_at = timezone.now()
+    short_url.times_accessed = F('times_accessed') + 1
+    short_url.save(update_fields=['accessed_at', 'times_accessed'])
 
-    return redirect(short_url.url)
+    return redirect(short_url.full_url)
 
 
 class ShortURLListCreateAPI(ListCreateAPIView):
@@ -29,9 +28,8 @@ class ShortURLListCreateAPI(ListCreateAPIView):
 
     def get_queryset(self):
         if self.request.user.is_authenticated:
-            return ShortURL.objects.filter(author=self.request.user)
-        else:
-            return ShortURL.objects.none()
+            return ShortURL.objects.filter(author=self.request.user, deleted_at__isnull=True)
+        return ShortURL.objects.none()
 
 
 class ShortURLRemoveAPI(RetrieveDestroyAPIView):
@@ -40,7 +38,5 @@ class ShortURLRemoveAPI(RetrieveDestroyAPIView):
 
     def get_queryset(self):
         if self.request.user.is_authenticated:
-            return ShortURL.objects.filter(author=self.request.user)
-        else:
-            return ShortURL.objects.none()
-
+            return ShortURL.objects.filter(author=self.request.user, deleted_at__isnull=True)
+        return ShortURL.objects.none()
